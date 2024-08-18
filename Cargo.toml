@@ -1,0 +1,15 @@
+[package]
+name = "eologsave"
+version = "0.1.0"
+edition = "2021"
+authors = ["stackinspector"]
+license = "MPL-2.0"
+repository = "https://github.com/Berylsoft/eologsave"
+
+[[bin]]
+path = "main.rs"
+name = "eologsave"
+
+[dependencies]
+ureq = "*"
+deflate = "*"
