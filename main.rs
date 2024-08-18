@@ -42,9 +42,9 @@ fn main() {
         let mut res_buf = Vec::new();
         let res_l = res_h.read_to_end(&mut res_buf).unwrap();
         assert_eq!(res_buf.len(), res_l);
-        wn!(line_l);
-        ws!(line);
-        wn!(res_l);
+        wn!(dbg!(line_l));
+        ws!(dbg!(line));
+        wn!(dbg!(res_l));
         w!(res_buf);
     }
 }

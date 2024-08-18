@@ -11,5 +11,5 @@ path = "main.rs"
 name = "eologsave"
 
 [dependencies]
-ureq = "*"
-deflate = "*"
+ureq = "2.10.1"
+# inflate = "0.4.5"
