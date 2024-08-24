@@ -1,6 +1,8 @@
 #![allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+// TODO region
+
 struct Access {
     secret_id: String,
     secret_key: String,
@@ -33,15 +35,13 @@ impl Service for EdgeOne {
     const VERSION: &'static str = "2022-09-01";
 }
 
-#[derive(Serialize, Deserialize)]
-struct ISO8601;
-
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct DownloadL7Logs {
-    start_time: ISO8601,
-    end_time: ISO8601,
+    start_time: String, // ISO8601
+    end_time: String, // ISO8601
     zone_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     domains: Option<Vec<String>>,
     limit: u32,
     offset: u32,
@@ -54,7 +54,13 @@ impl Action for DownloadL7Logs {
     const ACTION: &'static str = "DownloadL7Logs";
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct ResponseWrapper<T> {
+    response: T,
+}
+
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct DownloadL7LogsRes {
     total_count: u32,
@@ -62,7 +68,7 @@ struct DownloadL7LogsRes {
     request_id: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct L7OfflineLog {
     domain: String,
@@ -70,12 +76,14 @@ struct L7OfflineLog {
     log_packet_name: String,
     url: String,
     log_time: u64,
-    log_start_time: ISO8601,
-    log_end_time: ISO8601,
+    log_start_time: String, // ISO8601
+    log_end_time: String, // ISO8601
     size: u64,
 }
 
-fn timestamp_to_date(timestamp: u64) -> String { String::new() }
+fn timestamp_to_date(timestamp: u64) -> String {
+    chrono::DateTime::from_timestamp(timestamp.try_into().unwrap(), 0).unwrap().format("%Y-%m-%d").to_string()
+}
 
 fn sha256<B: AsRef<[u8]>>(data: B) -> [u8; 32] {
     use sha2::Digest;
@@ -170,7 +178,7 @@ fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, sec
         known {
             AUTHORIZATION => owned authorization;
             CONTENT_TYPE => static content_type;
-            HOST => static content_type;
+            HOST => static host;
         } 
         custom {
             "X-TC-Action" => static action;
@@ -182,4 +190,44 @@ fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, sec
     request.body(payload).unwrap()
 }
 
-fn main() {}
+fn now_raw() -> (bool, u64, u32) {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let res = SystemTime::now().duration_since(UNIX_EPOCH);
+    let dir = res.is_ok();
+    let dur = res.unwrap_or_else(|err| err.duration());
+    (dir, dur.as_secs(), dur.subsec_nanos())
+}
+
+fn now() -> u64 {
+    let (dir, secs, nanos) = now_raw();
+    assert!(dir);
+    secs
+}
+
+fn ureq(req: http::Request<String>) -> Box<dyn std::io::Read + Send + Sync + 'static> {
+    let (mut http_parts, body) = req.into_parts();
+    let host = http_parts.headers.get(http::header::HOST).unwrap().to_str().unwrap();
+    http_parts.uri = format!("https://{}/", host).parse().unwrap();
+    let request: ureq::Request = http_parts.into();
+    request.send_string(&body).unwrap().into_reader()
+}
+
+fn main() {
+    let secret_id = std::fs::read_to_string("sid").unwrap();
+    let secret_key = std::fs::read_to_string("sk").unwrap();
+    let zone_id = std::fs::read_to_string("zid").unwrap();
+
+    let payload = DownloadL7Logs {
+        start_time: "2024-07-17T00:00:00+08:00".to_owned(),
+        end_time: "2024-07-17T23:59:00+08:00".to_owned(),
+        zone_ids: vec![zone_id],
+        domains: None,
+        limit: 300,
+        offset: 0,
+    };
+    let access = Access { secret_id, secret_key };
+    let req = dbg!(build_request(&payload, now(), &access));
+    let res = ureq(req);
+    let res: ResponseWrapper<DownloadL7LogsRes> = serde_json::from_reader(res).unwrap();
+    dbg!(res);
+}
