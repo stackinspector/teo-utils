@@ -1,4 +1,3 @@
-#![allow(unused)]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 // TODO region
@@ -65,7 +64,7 @@ struct ResponseWrapper<T> {
 struct DownloadL7LogsRes {
     total_count: u32,
     data: Vec<L7OfflineLog>,
-    request_id: String,
+    // request_id: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -199,7 +198,7 @@ fn now_raw() -> (bool, u64, u32) {
 }
 
 fn now() -> u64 {
-    let (dir, secs, nanos) = now_raw();
+    let (dir, secs, _nanos) = now_raw();
     assert!(dir);
     secs
 }
@@ -266,7 +265,7 @@ fn main() {
 
         let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
         let mut uncompressed_buf = String::new();
-        gz_reader.read_to_string(&mut uncompressed_buf);
+        gz_reader.read_to_string(&mut uncompressed_buf).unwrap();
         let uncompressed_size = uncompressed_buf.len().try_into().unwrap();
 
         let gz_header = gz_reader.header().unwrap();
@@ -284,7 +283,7 @@ fn main() {
         dst_buf.extend_from_slice(uncompressed_buf.as_bytes());
     }
 
-    let mut dst_file = std::fs::OpenOptions::new().create_new(true).write(true).open("dst").unwrap();
+    let dst_file = std::fs::OpenOptions::new().create_new(true).write(true).open("dst").unwrap();
     let mut xz_handle = xz2::write::XzEncoder::new(dst_file, 9);
     xz_handle.write_all(dst_buf.as_slice()).unwrap();
 }
