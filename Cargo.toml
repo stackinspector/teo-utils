@@ -7,7 +7,7 @@ license = "MPL-2.0"
 repository = "https://github.com/Berylsoft/eologsave"
 
 [[bin]]
-path = "tcapi.rs"
+path = "main.rs"
 name = "eologsave"
 
 [dependencies]
