@@ -35,14 +35,16 @@ fn timestamp_to_date(timestamp: u64) -> String {
     chrono::DateTime::from_timestamp(timestamp.try_into().unwrap(), 0).unwrap().format("%Y-%m-%d").to_string()
 }
 
-fn sha256<B: AsRef<[u8]>>(data: B) -> [u8; 32] {
+const SHA256_OUT_LEN: usize = 32;
+
+fn sha256<B: AsRef<[u8]>>(data: B) -> [u8; SHA256_OUT_LEN] {
     use sha2::Digest;
     let mut ctx = sha2::Sha256::new();
     ctx.update(data.as_ref());
     ctx.finalize().into()
 }
 
-fn hmac_sha256<B1: AsRef<[u8]>, B2: AsRef<[u8]>>(key: B1, data: B2) -> [u8; 32] {
+fn hmac_sha256<B1: AsRef<[u8]>, B2: AsRef<[u8]>>(key: B1, data: B2) -> [u8; SHA256_OUT_LEN] {
     use hmac::Mac;
     let mut ctx = hmac::Hmac::<sha2::Sha256>::new_from_slice(key.as_ref()).unwrap();
     ctx.update(data.as_ref());
@@ -70,7 +72,26 @@ macro_rules! headers {
     }};
 }
 
+struct HexBuf<const OUT_LEN: usize> {
+    buf: [u8; OUT_LEN],
+}
+
+impl<const OUT_LEN: usize> HexBuf<OUT_LEN> {
+    fn new() -> HexBuf<OUT_LEN> {
+        HexBuf {
+            buf: [0; OUT_LEN],
+        }
+    }
+
+    fn hex<'a, B: AsRef<[u8]>>(&'a mut self, data: B) -> &'a str {
+        hex::encode_to_slice(data, &mut self.buf).unwrap();
+        core::str::from_utf8(self.buf.as_slice()).unwrap()
+    }
+}
+
 pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, secret_key }: &Access) -> http::Request<String> {
+    let mut hex_buf = HexBuf::<{SHA256_OUT_LEN * 2}>::new();
+
     let service = A::Service::SERVICE;
     let host = A::Service::HOST;
     let version = A::Service::VERSION;
@@ -86,7 +107,7 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
     let canonical_uri = "/";
     let canonical_querystring = match A::STYLE {
         Style::PostJson => "",
-        // get: payload -> urlencode
+        // get: payload -> urlencode Cow?
     };
     let content_type = match A::STYLE {
         Style::PostJson => "application/json; charset=utf-8",
@@ -94,29 +115,29 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
     let action_lowercase = action.to_ascii_lowercase(); // TODO const
     let canonical_headers = format!("content-type:{content_type}\nhost:{host}\nx-tc-action:{action_lowercase}\n");
     let signed_headers = "content-type;host;x-tc-action";
-    let hashed_request_payload = hex::encode(sha256(&payload)); // TODO array string
+    let hashed_request_payload = hex_buf.hex(sha256(&payload));
     let canonical_request = [
         http_request_method,
         canonical_uri,
         canonical_querystring,
         canonical_headers.as_str(),
         signed_headers,
-        hashed_request_payload.as_str(),
+        hashed_request_payload,
     ].join("\n");
 
     let credential_scope = format!("{date}/{service}/tc3_request");
-    let hashed_canonical_request = hex::encode(sha256(canonical_request));
+    let hashed_canonical_request = hex_buf.hex(sha256(canonical_request));
     let string_to_sign = [
         algorithm,
         timestamp_string.as_str(),
         credential_scope.as_str(),
-        hashed_canonical_request.as_str(),
+        hashed_canonical_request,
     ].join("\n");
 
     let secret_date = hmac_sha256(format!("TC3{secret_key}"), date);
     let secret_service = hmac_sha256(secret_date, service);
     let secret_signing = hmac_sha256(secret_service, "tc3_request");
-    let signature = hex::encode(hmac_sha256(secret_signing, string_to_sign));
+    let signature = hex_buf.hex(hmac_sha256(secret_signing, string_to_sign));
 
     let authorization = format!("{algorithm} Credential={secret_id}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}");
 
