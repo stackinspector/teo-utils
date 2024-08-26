@@ -47,12 +47,10 @@ fn remove_url_query(url: &str) -> String {
     url.into()
 }
 
-#[allow(deprecated)]
-fn make_date(year: i32, month: u32, day: u32, offset: i32) -> chrono::Date<chrono::FixedOffset> {
-    use chrono::TimeZone;
-    let time_zone = chrono::FixedOffset::east_opt(offset * 3600).unwrap();
-    let naive = chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap();
-    time_zone.from_local_date(&naive).unwrap()
+fn make_time_iso8601(date: chrono::NaiveDate, time_zone: &chrono::FixedOffset, hour: u32, min: u32, sec: u32) -> String {
+    let naive = date.and_hms_opt(hour, min, sec).unwrap();
+    let with_time_zone = chrono::TimeZone::from_local_datetime(time_zone, &naive).unwrap();
+    with_time_zone.to_rfc3339()
 }
 
 fn main() {
@@ -63,17 +61,19 @@ fn main() {
 
     use std::io::{Read, Write};
 
+    let offset = 8;
+    let time_zone = chrono::FixedOffset::east_opt(offset * 3600).unwrap();
     // include
-    let start_date = make_date(2024, 8, 24, 8);
+    let start_date = chrono::NaiveDate::parse_from_str("20240824", "%Y%m%d").unwrap();
     // exclude
-    let end_date = make_date(2024, 8, 24, 8);
+    let end_date = chrono::NaiveDate::parse_from_str("20240824", "%Y%m%d").unwrap();
     let mut date = start_date;
 
     loop {
         let max_limit = 300;
         let payload = DownloadL7Logs {
-            start_time: date.and_hms_opt(0, 0, 0).unwrap().to_rfc3339(),
-            end_time: date.and_hms_opt(23, 59, 0).unwrap().to_rfc3339(),
+            start_time: make_time_iso8601(date, &time_zone, 0, 0, 0),
+            end_time: make_time_iso8601(date, &time_zone, 23, 59, 0),
             zone_ids: vec![zone_id.clone()],
             domains: None,
             limit: max_limit,
