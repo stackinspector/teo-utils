@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
+#[derive(Deserialize)]
 pub struct Access {
     pub secret_id: String,
     pub secret_key: String,

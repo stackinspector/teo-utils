@@ -53,22 +53,34 @@ fn make_time_iso8601(date: chrono::NaiveDate, time_zone: &chrono::FixedOffset, h
     with_time_zone.to_rfc3339()
 }
 
+fn parse_access(p: std::ffi::OsString) -> Access {
+    let f = std::fs::File::open(p).unwrap();
+    serde_json::from_reader(f).unwrap()
+}
+
+fn parse_date(p: std::ffi::OsString) -> chrono::NaiveDate {
+    let s = p.into_string().unwrap();
+    chrono::NaiveDate::parse_from_str(&s, "%Y%m%d").unwrap()
+}
+
+fn parse_time_zone(p: std::ffi::OsString) -> chrono::FixedOffset {
+    let s = p.into_string().unwrap();
+    let offset: i32 = s.parse().unwrap();
+    chrono::FixedOffset::east_opt(offset * 3600).unwrap()
+}
+
 fn main() {
-    let secret_id = std::fs::read_to_string("sid").unwrap();
-    let secret_key = std::fs::read_to_string("sk").unwrap();
-    let zone_id = std::fs::read_to_string("zid").unwrap();
-    let access = Access { secret_id, secret_key };
+    let mut args = std::env::args_os();
+    let _ = args.next();
+    let access = parse_access(args.next().unwrap());
+    let zone_id = args.next().unwrap().into_string().unwrap();
+    let start_date = parse_date(args.next().unwrap());
+    let end_date = parse_date(args.next().unwrap());
+    let time_zone = parse_time_zone(args.next().unwrap());
 
     use std::io::{Read, Write};
 
-    let offset = 8;
-    let time_zone = chrono::FixedOffset::east_opt(offset * 3600).unwrap();
-    // include
-    let start_date = chrono::NaiveDate::parse_from_str("20240824", "%Y%m%d").unwrap();
-    // exclude
-    let end_date = chrono::NaiveDate::parse_from_str("20240824", "%Y%m%d").unwrap();
     let mut date = start_date;
-
     loop {
         let max_limit = 300;
         let payload = DownloadL7Logs {
