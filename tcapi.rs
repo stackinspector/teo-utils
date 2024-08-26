@@ -32,8 +32,9 @@ pub struct ResponseWrapper<T> {
     pub response: T,
 }
 
-fn timestamp_to_date(timestamp: u64) -> String {
-    chrono::DateTime::from_timestamp(timestamp.try_into().unwrap(), 0).unwrap().format("%Y-%m-%d").to_string()
+fn timestamp_to_date(timestamp: i64) -> String {
+    let datetime = chrono::DateTime::from_timestamp(timestamp, 0).unwrap();
+    datetime.format("%Y-%m-%d").to_string()
 }
 
 const SHA256_OUT_LEN: usize = 32;
@@ -79,19 +80,25 @@ struct HexBuf<const OUT_LEN: usize> {
 
 impl<const OUT_LEN: usize> HexBuf<OUT_LEN> {
     fn new() -> HexBuf<OUT_LEN> {
-        HexBuf {
-            buf: [0; OUT_LEN],
-        }
+        HexBuf { buf: [0; OUT_LEN] }
     }
 
-    fn hex<'a, B: AsRef<[u8]>>(&'a mut self, data: B) -> &'a str {
+    fn hex<B: AsRef<[u8]>>(&mut self, data: B) -> &str {
         hex::encode_to_slice(data, &mut self.buf).unwrap();
         core::str::from_utf8(self.buf.as_slice()).unwrap()
     }
 }
 
-pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, secret_key }: &Access, region: Option<&str>) -> http::Request<String> {
-    let mut hex_buf = HexBuf::<{SHA256_OUT_LEN * 2}>::new();
+pub fn build_request<A: Action>(
+    payload: &A,
+    timestamp: i64,
+    Access {
+        secret_id,
+        secret_key,
+    }: &Access,
+    region: Option<&str>,
+) -> http::Request<String> {
+    let mut hex_buf = HexBuf::<{ SHA256_OUT_LEN * 2 }>::new();
     let mut num_buf = itoa::Buffer::new();
     // TODO guarantees that prev refs are invalidated after next write call
 
@@ -145,9 +152,11 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
 
     let authorization = format!("{algorithm} Credential={secret_id}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}");
 
-    let mut request = http::Request::builder().method(match A::STYLE {
-        Style::PostJson => http::Method::POST,
-    }).uri(canonical_uri);
+    let mut request = http::Request::builder()
+        .method(match A::STYLE {
+            Style::PostJson => http::Method::POST,
+        })
+        .uri(canonical_uri);
 
     headers! {
         request;
@@ -164,7 +173,8 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
     }
 
     if A::REGION {
-        request.headers_mut().unwrap().append("X-TC-Region", header_value!(owned region.unwrap()));
+        let headers = request.headers_mut().unwrap();
+        headers.append("X-TC-Region", header_value!(owned region.unwrap()));
     }
 
     request.body(payload).unwrap()
