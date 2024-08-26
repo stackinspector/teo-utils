@@ -47,6 +47,14 @@ fn remove_url_query(url: &str) -> String {
     url.into()
 }
 
+#[allow(deprecated)]
+fn make_date(year: i32, month: u32, day: u32, offset: i32) -> chrono::Date<chrono::FixedOffset> {
+    use chrono::TimeZone;
+    let time_zone = chrono::FixedOffset::east_opt(offset * 3600).unwrap();
+    let naive = chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap();
+    time_zone.from_local_date(&naive).unwrap()
+}
+
 fn main() {
     let secret_id = std::fs::read_to_string("sid").unwrap();
     let secret_key = std::fs::read_to_string("sk").unwrap();
@@ -55,11 +63,11 @@ fn main() {
 
     use std::io::{Read, Write};
 
-    use chrono::{TimeZone, Datelike};
-    let time_zone = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
-    let start_date_naive = chrono::NaiveDate::from_ymd_opt(2024, 7, 17).unwrap();
-    #[allow(deprecated)]
-    let mut date = time_zone.from_local_date(&start_date_naive).unwrap();
+    // include
+    let start_date = make_date(2024, 8, 24, 8);
+    // exclude
+    let end_date = make_date(2024, 8, 24, 8);
+    let mut date = start_date;
 
     loop {
         let max_limit = 300;
@@ -111,7 +119,7 @@ fn main() {
         xz_handle.write_all(dst_buf.as_slice()).unwrap();
 
         date = date.checked_add_signed(chrono::TimeDelta::days(1)).unwrap();
-        if date.month() == 8 && date.day() == 23 {
+        if date >= end_date {
             break;
         }
     }
