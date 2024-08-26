@@ -11,15 +11,17 @@ path = "main.rs"
 name = "teo-logsave"
 
 [dependencies]
-ureq = { version = "2.10.1", features = ["http-crate"] }
-flate2 = "1.0.32"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-http = "1"
-sha2 = "0.10"
+# tcapi
 hex = "0.4"
-hmac = "0.12"
-chrono = { version = "0.4.38", default-features = false, features = ["alloc"] }
-url = "2.5"
-xz2 = "0.1.7"
 itoa = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+hmac = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+url = "2.5"
+http = "1.1"
+# main
+ureq = { version = "2.10", features = ["http-crate"] }
+flate2 = "^1.0.33"
+xz2 = "^0.1.7"
