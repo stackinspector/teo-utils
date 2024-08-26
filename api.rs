@@ -26,6 +26,7 @@ impl Action for DownloadL7Logs {
     type Service = EdgeOne;
     const STYLE: Style = Style::PostJson;
     const ACTION: &'static str = "DownloadL7Logs";
+    const REGION: bool = false;
 }
 
 #[derive(Deserialize, Debug)]

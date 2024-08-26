@@ -71,7 +71,7 @@ fn main() {
             limit: max_limit,
             offset: 0,
         };
-        let req = build_request(&payload, now(), &access);
+        let req = build_request(&payload, now(), &access, None);
         println!("{:?}", req);
         let res = ureq(req);
         let res: ResponseWrapper<DownloadL7LogsRes> = serde_json::from_reader(res).unwrap();
@@ -92,6 +92,7 @@ fn main() {
             let gz_header = gz_reader.header().unwrap();
             assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
             assert!(gz_header.comment().is_none());
+            assert!(gz_header.operating_system() == 3);
             let gz_filename = String::from_utf8(gz_header.filename().unwrap().to_owned()).unwrap();
             let gz_mtime = gz_header.mtime();
 

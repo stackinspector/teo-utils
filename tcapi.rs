@@ -22,6 +22,7 @@ pub trait Action: Serialize {
     type Service: Service;
     const STYLE: Style;
     const ACTION: &'static str;
+    const REGION: bool;
 }
 
 #[derive(Deserialize, Debug)]
@@ -30,7 +31,6 @@ pub struct ResponseWrapper<T> {
     pub response: T,
 }
 
-// TODO region
 fn timestamp_to_date(timestamp: u64) -> String {
     chrono::DateTime::from_timestamp(timestamp.try_into().unwrap(), 0).unwrap().format("%Y-%m-%d").to_string()
 }
@@ -89,7 +89,7 @@ impl<const OUT_LEN: usize> HexBuf<OUT_LEN> {
     }
 }
 
-pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, secret_key }: &Access) -> http::Request<String> {
+pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, secret_key }: &Access, region: Option<&str>) -> http::Request<String> {
     let mut hex_buf = HexBuf::<{SHA256_OUT_LEN * 2}>::new();
     let mut num_buf = itoa::Buffer::new();
     // TODO guarantees that prev refs are invalidated after next write call
@@ -114,7 +114,8 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
     let content_type = match A::STYLE {
         Style::PostJson => "application/json; charset=utf-8",
     };
-    let action_lowercase = action.to_ascii_lowercase(); // TODO const
+    // TODO wait for feature(generic_const_exprs)
+    let action_lowercase = action.to_ascii_lowercase();
     let canonical_headers = format!("content-type:{content_type}\nhost:{host}\nx-tc-action:{action_lowercase}\n");
     let signed_headers = "content-type;host;x-tc-action";
     let hashed_request_payload = hex_buf.hex(sha256(&payload));
@@ -153,12 +154,16 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
             AUTHORIZATION => owned authorization;
             CONTENT_TYPE => static content_type;
             HOST => static host;
-        } 
+        }
         custom {
             "X-TC-Action" => static action;
             "X-TC-Timestamp" => owned timestamp_string;
             "X-TC-Version" => static version;
         }
+    }
+
+    if A::REGION {
+        request.headers_mut().unwrap().append("X-TC-Region", header_value!(owned region.unwrap()));
     }
 
     request.body(payload).unwrap()
