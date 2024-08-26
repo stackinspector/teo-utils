@@ -91,6 +91,8 @@ impl<const OUT_LEN: usize> HexBuf<OUT_LEN> {
 
 pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id, secret_key }: &Access) -> http::Request<String> {
     let mut hex_buf = HexBuf::<{SHA256_OUT_LEN * 2}>::new();
+    let mut num_buf = itoa::Buffer::new();
+    // TODO guarantees that prev refs are invalidated after next write call
 
     let service = A::Service::SERVICE;
     let host = A::Service::HOST;
@@ -98,7 +100,7 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
     let action = A::ACTION;
     let payload = serde_json::to_string(payload).unwrap();
     let algorithm = "TC3-HMAC-SHA256";
-    let timestamp_string = timestamp.to_string(); /* TODO */
+    let timestamp_string = num_buf.format(timestamp);
     let date = timestamp_to_date(timestamp);
 
     let http_request_method = match A::STYLE {
@@ -129,7 +131,7 @@ pub fn build_request<A: Action>(payload: &A, timestamp: u64, Access { secret_id,
     let hashed_canonical_request = hex_buf.hex(sha256(canonical_request));
     let string_to_sign = [
         algorithm,
-        timestamp_string.as_str(),
+        timestamp_string,
         credential_scope.as_str(),
         hashed_canonical_request,
     ].join("\n");
