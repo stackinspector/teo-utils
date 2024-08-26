@@ -1,14 +1,14 @@
 [package]
-name = "eologsave"
+name = "teo-logsave"
 version = "0.1.0"
 edition = "2021"
 authors = ["stackinspector"]
 license = "MPL-2.0"
-repository = "https://github.com/Berylsoft/eologsave"
+repository = "https://github.com/Berylsoft/teo-logsave"
 
 [[bin]]
 path = "main.rs"
-name = "eologsave"
+name = "teo-logsave"
 
 [dependencies]
 ureq = { version = "2.10.1", features = ["http-crate"] }
