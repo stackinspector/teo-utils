@@ -1,11 +1,8 @@
-#![allow(unused)]
-
-mod common;
-use common::*;
-mod tcapi;
-use tcapi::*;
-mod api;
-use api::*;
+use tcapi_ureq_example::{
+    tcapi_model::api::*,
+    tcapi_client::Access,
+    tcapi_req,
+};
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]

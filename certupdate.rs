@@ -1,11 +1,8 @@
-#![allow(unused)]
-
-mod common;
-use common::*;
-mod tcapi;
-use tcapi::*;
-mod api;
-use api::*;
+use tcapi_ureq_example::{
+    tcapi_model::api::*,
+    tcapi_client::Access,
+    now, tcapi_req,
+};
 
 #[derive(serde::Deserialize)]
 struct Config {
