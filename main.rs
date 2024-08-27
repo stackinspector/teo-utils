@@ -1,35 +1,11 @@
+#![allow(unused)]
+
+mod common;
+use common::*;
 mod tcapi;
 use tcapi::*;
 mod api;
 use api::*;
-
-fn now() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let res = SystemTime::now().duration_since(UNIX_EPOCH);
-    let dir = res.is_ok();
-    let dur = res.unwrap_or_else(|err| err.duration());
-    let secs = dur.as_secs();
-    // let nanos = dur.subsec_nanos();
-    assert!(secs < (i64::MAX as u64));
-    let secs = secs as i64;
-    let secs = if dir { secs } else { -secs };
-    #[allow(clippy::let_and_return)]
-    secs
-}
-
-fn ureq(req: http::Request<String>) -> Box<dyn std::io::Read + Send + Sync + 'static> {
-    let (mut http_parts, body) = req.into_parts();
-    let host = http_parts.headers.get(http::header::HOST).unwrap().to_str().unwrap();
-    let uri_parts = http_parts.uri.into_parts();
-    http_parts.uri = http::Uri::builder()
-        .scheme(uri_parts.scheme.unwrap_or(http::uri::Scheme::HTTPS))
-        .authority(uri_parts.authority.unwrap_or(host.try_into().unwrap()))
-        .path_and_query(uri_parts.path_and_query.unwrap())
-        .build()
-        .unwrap();
-    let request: ureq::Request = http_parts.into();
-    request.send_string(&body).unwrap().into_reader()
-}
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -65,7 +41,7 @@ fn make_time_iso8601(
     with_time_zone.to_rfc3339()
 }
 
-fn parse_access(p: std::ffi::OsString) -> Access {
+fn parse_json<T: serde::de::DeserializeOwned>(p: std::ffi::OsString) -> T {
     let f = std::fs::File::open(p).unwrap();
     serde_json::from_reader(f).unwrap()
 }
@@ -84,7 +60,7 @@ fn parse_time_zone(p: std::ffi::OsString) -> chrono::FixedOffset {
 fn main() {
     let mut args = std::env::args_os();
     let _ = args.next();
-    let access = parse_access(args.next().unwrap());
+    let access: Access = parse_json(args.next().unwrap());
     let zone_id = args.next().unwrap().into_string().unwrap();
     let start_date = parse_date(args.next().unwrap());
     let end_date = parse_date(args.next().unwrap());
@@ -103,11 +79,7 @@ fn main() {
             limit: max_limit,
             offset: 0,
         };
-        let req = build_request(&payload, now(), &access, None);
-        println!("{:?}", req);
-        let res = ureq(req);
-        let res: ResponseWrapper<DownloadL7LogsRes> = serde_json::from_reader(res).unwrap();
-        let res = res.response;
+        let res = tcapi_req(payload, &access);
         assert!(res.total_count <= max_limit); // empirical & adhoc
 
         let mut dst_buf = Vec::with_capacity(16777216); // empirical

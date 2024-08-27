@@ -10,11 +10,16 @@ repository = "https://github.com/Berylsoft/teo-logsave"
 path = "main.rs"
 name = "teo-logsave"
 
+[[bin]]
+path = "certupdate.rs"
+name = "teo-certupdate"
+
 [dependencies]
 # tcapi
 hex = "0.4"
 itoa = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+serde-enum-str = "0.3"
 serde_json = "1.0"
 sha2 = "0.10"
 hmac = "0.12"
