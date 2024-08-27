@@ -1,13 +1,13 @@
 [package]
-name = "teo-logsave"
+name = "teo-utils"
 version = "0.1.0"
 edition = "2021"
 authors = ["stackinspector"]
 license = "MPL-2.0"
-repository = "https://github.com/Berylsoft/teo-logsave"
+repository = "https://github.com/Berylsoft/teo-utils"
 
 [[bin]]
-path = "main.rs"
+path = "logsave.rs"
 name = "teo-logsave"
 
 [[bin]]
