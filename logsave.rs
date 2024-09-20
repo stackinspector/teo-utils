@@ -80,7 +80,10 @@ fn main() {
         let res = client.req(payload);
         assert!(res.total_count <= max_limit); // empirical & adhoc
 
-        let mut dst_buf = Vec::with_capacity(16777216); // empirical
+        let dst_filename = format!("{}-{zone_id}.xz", date.format("%Y%m%d"));
+        println!("<- {dst_filename}");
+        let dst_file = std::fs::OpenOptions::new().create_new(true).write(true).open(dst_filename).unwrap();
+        let mut xz_handle = xz2::write::XzEncoder::new(dst_file, 9);
 
         for item in res.data {
             let L7OfflineLog {
@@ -122,16 +125,10 @@ fn main() {
                 gz_mtime,
                 uncompressed_size,
             };
-            serde_json::to_writer(&mut dst_buf, &info).unwrap();
-            dst_buf.extend_from_slice("\n".as_bytes());
-            dst_buf.extend_from_slice(uncompressed_buf.as_bytes());
+            serde_json::to_writer(&mut xz_handle, &info).unwrap();
+            xz_handle.write_all("\n".as_bytes()).unwrap();
+            xz_handle.write_all(uncompressed_buf.as_bytes()).unwrap();
         }
-
-        let dst_filename = format!("{}-{zone_id}.xz", date.format("%Y%m%d"));
-        println!("<- {dst_filename}");
-        let dst_file = std::fs::OpenOptions::new().create_new(true).write(true).open(dst_filename).unwrap();
-        let mut xz_handle = xz2::write::XzEncoder::new(dst_file, 9);
-        xz_handle.write_all(dst_buf.as_slice()).unwrap();
 
         date = date.checked_add_signed(chrono::TimeDelta::days(1)).unwrap();
         if date >= end_date {
