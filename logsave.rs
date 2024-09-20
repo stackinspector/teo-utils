@@ -65,7 +65,7 @@ fn main() {
 
     use std::io::{Read, Write};
 
-    let mut client = LocalUreqClient::new(std::sync::Arc::new(access));
+    let mut client = LocalUreqClient::new(access);
     let mut date = start_date;
     loop {
         let max_limit = 300;

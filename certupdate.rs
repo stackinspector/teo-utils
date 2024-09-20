@@ -28,7 +28,7 @@ fn main() {
     let _ = args.next();
     let access: Access = parse_json(args.next().unwrap());
     let config: Config = parse_json(args.next().unwrap());
-    let mut client = LocalUreqClient::new(std::sync::Arc::new(access));
+    let mut client = LocalUreqClient::new(access);
 
     let cert_id = {
         let payload = UploadCertificate {
