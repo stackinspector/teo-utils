@@ -1,7 +1,7 @@
 use tcapi_ureq_example::{
     tcapi_model::api::*,
     tcapi_client::Access,
-    tcapi_req,
+    LocalUreqClient,
 };
 
 #[derive(serde::Serialize)]
@@ -65,6 +65,7 @@ fn main() {
 
     use std::io::{Read, Write};
 
+    let mut client = LocalUreqClient::new(std::sync::Arc::new(access));
     let mut date = start_date;
     loop {
         let max_limit = 300;
@@ -76,7 +77,7 @@ fn main() {
             limit: max_limit,
             offset: 0,
         };
-        let res = tcapi_req(payload, &access);
+        let res = client.req(payload);
         assert!(res.total_count <= max_limit); // empirical & adhoc
 
         let mut dst_buf = Vec::with_capacity(16777216); // empirical

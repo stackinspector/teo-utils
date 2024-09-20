@@ -1,7 +1,7 @@
 use tcapi_ureq_example::{
     tcapi_model::api::*,
     tcapi_client::Access,
-    now, tcapi_req,
+    now, LocalUreqClient,
 };
 
 #[derive(serde::Deserialize)]
@@ -28,7 +28,8 @@ fn main() {
     let _ = args.next();
     let access: Access = parse_json(args.next().unwrap());
     let config: Config = parse_json(args.next().unwrap());
-    
+    let mut client = LocalUreqClient::new(std::sync::Arc::new(access));
+
     let cert_id = {
         let payload = UploadCertificate {
             certificate_public_key: std::fs::read_to_string(config.fullchain_path).unwrap(),
@@ -38,7 +39,7 @@ fn main() {
             repeatable: false,
             certificate_type: CertificateType::SVR,
         };
-        let UploadCertificateRes { certificate_id, repeat_cert_id } = tcapi_req(payload, &access);
+        let UploadCertificateRes { certificate_id, repeat_cert_id } = client.req(payload);
         assert!(repeat_cert_id.len() == 0);
         certificate_id
     };
@@ -52,6 +53,6 @@ fn main() {
             }],
             mode: HostsCertificateMode::sslcert,
         };
-        let ModifyHostsCertificateRes { } = tcapi_req(payload, &access);
+        let ModifyHostsCertificateRes { } = client.req(payload);
     }
 }
