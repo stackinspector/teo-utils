@@ -1,3 +1,5 @@
+#![deny(unused_results)]
+
 use tcapi_ureq_example::{
     tcapi_model::api::*,
     tcapi_client::Access,

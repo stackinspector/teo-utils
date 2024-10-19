@@ -1,3 +1,5 @@
+#![deny(unused_results)]
+
 use tcapi_ureq_example::{
     tcapi_model::api::*,
     tcapi_client::Access,
@@ -84,6 +86,7 @@ fn main() {
         println!("<- {dst_filename}");
         let dst_file = std::fs::OpenOptions::new().create_new(true).write(true).open(dst_filename).unwrap();
         let mut xz_handle = xz2::write::XzEncoder::new(dst_file, 9);
+        let mut uncompressed_buf = String::new();
 
         for item in res.data {
             let L7OfflineLog {
@@ -99,9 +102,9 @@ fn main() {
             let gz_handle = ureq::get(&url).call().unwrap().into_reader();
 
             let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
-            let mut uncompressed_buf = String::new();
-            gz_reader.read_to_string(&mut uncompressed_buf).unwrap();
+            let uncompressed_size_ = gz_reader.read_to_string(&mut uncompressed_buf).unwrap() as u64;
             let uncompressed_size = uncompressed_buf.len().try_into().unwrap();
+            assert_eq!(uncompressed_size, uncompressed_size_);
 
             let gz_header = gz_reader.header().unwrap();
             assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
@@ -128,6 +131,7 @@ fn main() {
             serde_json::to_writer(&mut xz_handle, &info).unwrap();
             xz_handle.write_all("\n".as_bytes()).unwrap();
             xz_handle.write_all(uncompressed_buf.as_bytes()).unwrap();
+            uncompressed_buf.clear();
         }
 
         date = date.checked_add_signed(chrono::TimeDelta::days(1)).unwrap();
