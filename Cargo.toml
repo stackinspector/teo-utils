@@ -11,6 +11,10 @@ path = "logsave.rs"
 name = "teo-logsave"
 
 [[bin]]
+path = "logbatchsave.rs"
+name = "teo-logbatchsave"
+
+[[bin]]
 path = "certupdate.rs"
 name = "teo-certupdate"
 
