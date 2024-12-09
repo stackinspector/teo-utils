@@ -23,10 +23,16 @@ struct LogInfoBegin {
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
-struct LogInfoEnd {
-    gz_filename: String,
-    gz_mtime: u32,
-    uncompressed_size: u64,
+#[serde(tag = "type")]
+enum LogInfoEnd {
+    Ok {
+        gz_filename: String,
+        gz_mtime: u32,
+        uncompressed_size: u64,
+    },
+    Err {
+        status: Option<u16>,
+    },
 }
 
 fn remove_url_query(url: &str) -> String {
@@ -64,7 +70,7 @@ fn parse_time_zone(p: std::ffi::OsString) -> chrono::FixedOffset {
 }
 
 fn handle_a_segment(log_info: L7OfflineLog) -> Vec<u8> {
-    let mut segment = Vec::new();
+    let mut segment_buf = Vec::new();
 
     // begin
     let L7OfflineLog {
@@ -77,7 +83,6 @@ fn handle_a_segment(log_info: L7OfflineLog) -> Vec<u8> {
         log_end_time,
         size,
     } = log_info;
-    let gz_handle = ureq::get(&url).call().unwrap().into_reader();
     let url_without_query = remove_url_query(&url);
     let info_begin = LogInfoBegin {
         domain,
@@ -89,33 +94,54 @@ fn handle_a_segment(log_info: L7OfflineLog) -> Vec<u8> {
         log_end_time,
         size,
     };
-    serde_json::to_writer(&mut segment, &info_begin).unwrap();
-    segment.push(b'\n');
+    serde_json::to_writer(&mut segment_buf, &info_begin).unwrap();
+    segment_buf.push(b'\n');
 
-    // content
-    let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
-    let uncompressed_size = gz_reader.read_to_end(&mut segment).unwrap() as u64;
-    // let uncompressed_size = content.len().try_into().unwrap();
-    // assert_eq!(uncompressed_size, uncompressed_size_);
+    let resp = ureq::get(&url).call();
+    match resp {
+        Ok(resp) => {
+            let gz_handle = resp.into_reader();
 
-    // end
-    let gz_header = gz_reader.header().unwrap();
-    assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
-    assert!(gz_header.comment().is_none());
-    assert!(gz_header.operating_system() == 3);
-    let gz_filename = String::from_utf8(gz_header.filename().unwrap().to_owned()).unwrap();
-    println!("-> {gz_filename}");
-    let gz_mtime = gz_header.mtime();
-    let info_end = LogInfoEnd {
-        gz_filename,
-        gz_mtime,
-        uncompressed_size,
-    };
-    serde_json::to_writer(&mut segment, &info_end).unwrap();
-    segment.push(b'\n');
-
-    // finish
-    segment
+            // content
+            let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
+            let uncompressed_size = gz_reader.read_to_end(&mut segment_buf).unwrap() as u64;
+            // let uncompressed_size = content.len().try_into().unwrap();
+            // assert_eq!(uncompressed_size, uncompressed_size_);
+        
+            // end
+            let gz_header = gz_reader.header().unwrap();
+            assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
+            assert!(gz_header.comment().is_none());
+            assert!(gz_header.operating_system() == 3);
+            let gz_filename = String::from_utf8(gz_header.filename().unwrap().to_owned()).unwrap();
+            println!("-> {gz_filename}");
+            let gz_mtime = gz_header.mtime();
+            let info_end = LogInfoEnd::Ok {
+                gz_filename,
+                gz_mtime,
+                uncompressed_size,
+            };
+            serde_json::to_writer(&mut segment_buf, &info_end).unwrap();
+            segment_buf.push(b'\n');
+        
+            // finish
+            segment_buf
+        }
+        Err(err) => {
+            println!("!! {url}");
+            let status = match err {
+                ureq::Error::Status(n, _) => Some(n),
+                ureq::Error::Transport(_) => None,
+            };
+            let info_end = LogInfoEnd::Err {
+                status,
+            };
+            serde_json::to_writer(&mut segment_buf, &info_end).unwrap();
+            segment_buf.push(b'\n');
+        
+            segment_buf
+        }
+    }
 }
 
 struct Context {
