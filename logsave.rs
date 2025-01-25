@@ -22,6 +22,19 @@ struct LogInfo {
     uncompressed_size: u64,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct FailLogInfo {
+    domain: String,
+    area: String,
+    log_packet_name: String,
+    url_without_query: String,
+    log_time: u64,
+    log_start_time: String, // ISO8601
+    log_end_time: String, // ISO8601
+    status: u16,
+}
+
 fn remove_url_query(url: &str) -> String {
     let mut url = url.parse::<url::Url>().unwrap();
     url.set_query(None);
@@ -99,7 +112,12 @@ fn main() {
                 log_end_time,
                 size,
             } = item;
-            let gz_handle = ureq::get(&url).call().unwrap().into_reader();
+            let res = ureq::get(&url).call();
+
+            match res {
+                Ok(res) => {
+
+            let gz_handle = res.into_reader();
 
             let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
             let uncompressed_size_ = gz_reader.read_to_string(&mut uncompressed_buf).unwrap() as u64;
@@ -131,6 +149,28 @@ fn main() {
             serde_json::to_writer(&mut xz_handle, &info).unwrap();
             xz_handle.write_all("\n".as_bytes()).unwrap();
             xz_handle.write_all(uncompressed_buf.as_bytes()).unwrap();
+
+                }
+                Err(err) => {
+
+            let url_without_query = remove_url_query(&url);
+            let status = err.into_response().unwrap().status();
+            println!("XX {url_without_query} {status}");
+            let info = FailLogInfo {
+                domain,
+                area,
+                log_packet_name,
+                url_without_query,
+                log_time,
+                log_start_time,
+                log_end_time,
+                status,
+            };
+            serde_json::to_writer(&mut xz_handle, &info).unwrap();
+            xz_handle.write_all("\n".as_bytes()).unwrap();
+
+                }
+            }
             uncompressed_buf.clear();
         }
 
