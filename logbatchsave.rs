@@ -29,6 +29,12 @@ struct LogInfoEnd {
     uncompressed_size: u64,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct LogInfoErrEnd {
+    status: u16,
+}
+
 fn remove_url_query(url: &str) -> String {
     let mut url = url.parse::<url::Url>().unwrap();
     url.set_query(None);
@@ -77,7 +83,6 @@ fn handle_a_segment(log_info: L7OfflineLog) -> Vec<u8> {
         log_end_time,
         size,
     } = log_info;
-    let gz_handle = ureq::get(&url).call().unwrap().into_reader();
     let url_without_query = remove_url_query(&url);
     let info_begin = LogInfoBegin {
         domain,
@@ -91,28 +96,43 @@ fn handle_a_segment(log_info: L7OfflineLog) -> Vec<u8> {
     };
     serde_json::to_writer(&mut segment, &info_begin).unwrap();
     segment.push(b'\n');
+    let res = ureq::get(&url).call();
+    match res {
+        Ok(res) => {
+            // content
+            let gz_handle = res.into_reader();
+            let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
+            let uncompressed_size = gz_reader.read_to_end(&mut segment).unwrap() as u64;
+            // let uncompressed_size = content.len().try_into().unwrap();
+            // assert_eq!(uncompressed_size, uncompressed_size_);
 
-    // content
-    let mut gz_reader = flate2::read::MultiGzDecoder::new(gz_handle);
-    let uncompressed_size = gz_reader.read_to_end(&mut segment).unwrap() as u64;
-    // let uncompressed_size = content.len().try_into().unwrap();
-    // assert_eq!(uncompressed_size, uncompressed_size_);
-
-    // end
-    let gz_header = gz_reader.header().unwrap();
-    assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
-    assert!(gz_header.comment().is_none());
-    assert!(gz_header.operating_system() == 3);
-    let gz_filename = String::from_utf8(gz_header.filename().unwrap().to_owned()).unwrap();
-    println!("-> {gz_filename}");
-    let gz_mtime = gz_header.mtime();
-    let info_end = LogInfoEnd {
-        gz_filename,
-        gz_mtime,
-        uncompressed_size,
-    };
-    serde_json::to_writer(&mut segment, &info_end).unwrap();
-    segment.push(b'\n');
+            // end
+            let gz_header = gz_reader.header().unwrap();
+            assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
+            assert!(gz_header.comment().is_none());
+            assert!(gz_header.operating_system() == 3);
+            let gz_filename = String::from_utf8(gz_header.filename().unwrap().to_owned()).unwrap();
+            println!("-> {gz_filename}");
+            let gz_mtime = gz_header.mtime();
+            let info_end = LogInfoEnd {
+                gz_filename,
+                gz_mtime,
+                uncompressed_size,
+            };
+            serde_json::to_writer(&mut segment, &info_end).unwrap();
+            segment.push(b'\n');
+        }
+        Err(err) => {
+            // end
+            let status = err.into_response().unwrap().status();
+            println!("XX {url} {status}");
+            let info = LogInfoErrEnd {
+                status,
+            };
+            serde_json::to_writer(&mut segment, &info).unwrap();
+            segment.write_all("\n".as_bytes()).unwrap();
+        }
+    }
 
     // finish
     segment
