@@ -24,7 +24,8 @@ struct LogInfoBegin {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct LogInfoEnd {
-    gz_filename: String,
+    gz_operating_system: u8,
+    gz_filename: Option<String>,
     gz_mtime: u32,
     uncompressed_size: u64,
 }
@@ -110,11 +111,16 @@ fn handle_a_segment(log_info: L7OfflineLog) -> Vec<u8> {
             let gz_header = gz_reader.header().unwrap();
             assert!(gz_header.extra().is_none()); // .is_some_and(|v| v.is_empty())
             assert!(gz_header.comment().is_none());
-            assert!(gz_header.operating_system() == 3);
-            let gz_filename = String::from_utf8(gz_header.filename().unwrap().to_owned()).unwrap();
-            println!("-> {gz_filename}");
+            let gz_operating_system = gz_header.operating_system();
+            let gz_filename = gz_header.filename().map(|name| String::from_utf8(name.to_owned()).unwrap());
+            if let Some(gz_filename) = &gz_filename {
+                println!("-> {gz_filename}");
+            } else {
+                println!("-> {}", serde_json::to_string(&info_begin).unwrap());
+            }
             let gz_mtime = gz_header.mtime();
             let info_end = LogInfoEnd {
+                gz_operating_system,
                 gz_filename,
                 gz_mtime,
                 uncompressed_size,
